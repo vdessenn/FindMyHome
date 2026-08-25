@@ -196,7 +196,7 @@ Three channels, three distinct audiences.
 | Channel | Audience | Cost | Requires |
 |---|---|---|---|
 | Wheel + `uvx --from git+…` | developer, repository visitor | none — falls out of `pyproject.toml` | `uv` |
-| Docker image | **the homelab (production)** | one `Dockerfile` | Docker |
+| Docker image | **self-hosted production** | one `Dockerfile` | Docker |
 | PyInstaller binary | machine with neither Python nor uv | one spec, **one runner per OS** | nothing |
 
 | Target | Command | Note |
