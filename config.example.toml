@@ -1,0 +1,26 @@
+# Copy to `config.toml` (git-ignored) and adapt.
+# No secret here: the SMTP password comes from FINDMYHOME_SMTP_PASSWORD.
+
+[search]
+transaction = "sale"          # "sale" | "rent"
+kinds = ["house"]             # "house" | "flat" | ...
+cities = ["Springfield"]
+postcodes = ["12345"]
+price_max = 400000
+surface_min = 80
+rooms_min = 4
+
+[sites]
+enabled = ["orpi", "laforet"]
+
+[digest]
+send_when_empty = false       # nothing new -> no email
+
+[smtp]
+host = "smtp.example.net"
+port = 587
+from = "findmyhome@example.net"
+to = ["me@example.net"]
+# password: FINDMYHOME_SMTP_PASSWORD environment variable
+
+# How often this runs is not here: that belongs to the scheduler (cron, systemd).

@@ -1,0 +1,36 @@
+# Installed by: uvx pre-commit install
+# The ruff hooks go through `uv run` so they use the version locked in uv.lock:
+# one ruff version in the project, no drift between `make lint` and the hook.
+# mypy is not here (slow, and already in `make check`): commit hooks stay fast.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --fix --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-toml
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+
+  # The project's first constraint: public repository plus an SMTP password.
+  # .gitignore protects config.toml; it does not protect against a secret pasted into a .py.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks

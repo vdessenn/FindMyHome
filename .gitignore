@@ -1,0 +1,30 @@
+# Local configuration and secrets - never committed (the repository is public)
+config.toml
+.env
+
+# Database
+*.db
+*.db-journal
+*.sqlite3
+
+# Environments and build artefacts
+.venv/
+.venv-*/
+dist/
+build/
+*.egg-info/
+
+# Development HTTP cache (see ARCHITECTURE.md)
+.cache/
+
+# Private working notes - separate git repository, GitLab only.
+notes/
+
+# Tool caches
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/

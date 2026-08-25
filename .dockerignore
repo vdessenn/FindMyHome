@@ -1,0 +1,7 @@
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!LICENSE
+!findmyhome/
+findmyhome/**/__pycache__/
