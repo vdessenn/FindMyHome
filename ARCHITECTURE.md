@@ -161,6 +161,10 @@ tests/fixtures/      # pruned real pages, offline tests
 
 Deliberately flat: six modules, no extra abstraction layer until a second use case demands one.
 
+That tree is the target shape. Today only `__main__.py`, `fetch.py` and their tests
+(`tests/test_fetch.py`, `tests/test_smoke.py`) exist — see the status note in
+[README.md](README.md).
+
 ## Development
 
 ```bash
