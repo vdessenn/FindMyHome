@@ -13,6 +13,10 @@ rooms_min = 4
 [sites]
 enabled = ["orpi", "laforet"]
 
+[storage]
+# Relative on purpose: the Docker image runs in /data, so this lands on the mounted volume.
+database = "findmyhome.db"    # override for one run with `--db`
+
 [digest]
 send_when_empty = false       # nothing new -> no email
 

@@ -61,7 +61,7 @@ config.toml
     │
     ▼
 [5] filter        hard criteria on the real fields (exact price, exact surface)
-    │
+    │             ← unknown listings only, see below
     ▼
 [6] diff          compared against SQLite → new / price drops / price rises / removals
     │
@@ -71,6 +71,17 @@ config.toml
 
 Every stage is a pure function except `fetch` (network), `diff` (database read/write) and
 `digest` (send). Stages 1 and 4 are the only ones that know about sites.
+
+**A listing we already know is never filtered out.** The prefilter reads the slug, which does
+not encode the price: a listing whose price rises past `price_max` is still discovered and still
+downloaded, but it fails stage 5. Dropping it there would report a price rise as a removal — the
+two things the digest exists to tell apart. Stage 5 therefore applies to unknown listings only:
+
+```python
+if listing.id in store.known_ids(site) or search.matches(listing):
+```
+
+"Removed" then means exactly one thing: gone from the site.
 
 **Key discovery**: listing slugs already encode the criteria — for example
 `annonce-vente-maison-t4-villers-sur-meuse-55220-…`. Stage 2 exploits this to download only a
@@ -101,15 +112,20 @@ class Site(Protocol):
 (`house`/`flat`/…). Unknown fields are `None` — an incomplete adapter is still useful.
 
 **Listing identity** (the deduplication key, principle 5):
-`(site, ref)` when the site exposes a reference, otherwise the canonical URL with its query
-string stripped. A secondary fingerprint `(postcode, surface, rooms, price)` exists only to
-detect republications under a new URL, and merely reports them in the email.
+`site:ref` when the site exposes a reference, `site:canonical-url` otherwise — query string and
+fragment stripped, host lowercased, trailing slash dropped. The site prefixes both variants: two
+agencies numbering their listings from 1 must not collide. Changing this rule does not migrate
+the database, it resets it: every listing would come back as new.
+
+A secondary fingerprint `(postcode, surface, rooms, price)` is meant to detect republications
+under a new URL and merely report them in the email. It is **not implemented yet** — it waits for
+the digest that would carry it, and for real data to measure its false positives on.
 
 ## Data model
 
 ```sql
 listing(id TEXT PRIMARY KEY,   -- the identity above
-        site, url, title, price, surface, rooms, city, postcode,
+        site, url, ref, title, price, surface, rooms, city, postcode,
         agency, photo_url, transaction, kind,
         first_seen, last_seen, active INTEGER)
 
@@ -118,8 +134,15 @@ price_change(listing_id, seen_at, old_price, new_price)
 site_run(site, ran_at, found_count, error)
 ```
 
+`ref` is stored even though the identity already encodes it: a removed listing is read back from
+its row to be displayed in the email, and a `Listing` that cannot be rebuilt exactly would not
+compute the same identity.
+
 `site_run` is what arms principle 6: comparing against the previous `found_count` is what tells a
-quiet market apart from a broken scraper.
+quiet market apart from a broken scraper. The comparison reads the last run **with no error** —
+a run that failed at zero listings must not become the reference that disarms the guard rail.
+`PRAGMA user_version` carries the schema version; there is no migration machinery until a schema
+actually changes.
 
 ## Dependencies
 
@@ -161,9 +184,10 @@ tests/fixtures/      # pruned real pages, offline tests
 
 Deliberately flat: six modules, no extra abstraction layer until a second use case demands one.
 
-That tree is the target shape. Today only `__main__.py`, `fetch.py` and their tests
-(`tests/test_fetch.py`, `tests/test_smoke.py`) exist — see the status note in
-[README.md](README.md).
+That tree is the target shape. `digest.py` and `sites/` do not exist yet, so `run` opens its
+database and collects nothing — see the status note in [README.md](README.md). The tests that
+exist are `test_smoke`, `test_fetch`, `test_listing`, `test_config`, `test_search` and
+`test_store`.
 
 ## Development
 

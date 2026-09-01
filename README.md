@@ -6,9 +6,10 @@ small estate agencies, instead of manually doing the rounds of a dozen different
 The email only contains what moved: **new listings, price drops, price rises, removals**.
 The goal is to stop opening any site at all until an email flags something.
 
-> **Status: foundations and the polite HTTP client are in place; the pipeline is not.**
-> `findmyhome run` answers but collects nothing yet. The design — principles, pipeline,
-> adapter contract, data model — lives in [ARCHITECTURE.md](ARCHITECTURE.md).
+> **Status: the core is in place — configuration, listing identity, SQLite storage and the diff.
+> What is missing is the adapters and the email.** `findmyhome run` opens its database and
+> collects nothing yet. The design — principles, pipeline, adapter contract, data model — lives
+> in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## How it behaves
 
