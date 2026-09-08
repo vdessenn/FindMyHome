@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Victor DESSENNE
 """The hard filter (pipeline stage 5): criteria decide, listings do not.
 
 Two rules carry the whole file: an unknown field never rejects — an incomplete adapter is still

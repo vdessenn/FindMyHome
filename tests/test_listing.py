@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Victor DESSENNE
 """Listing identity: the frozen contract principle 5 rests on.
 
 "New" means "absent from our database", so an identity that moves between two runs would

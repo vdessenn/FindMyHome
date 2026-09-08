@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Victor DESSENNE
 """TOML configuration: loading, strict validation, and the search criteria themselves.
 
 A config file is edited by hand, so validation reports *every* problem at once rather than

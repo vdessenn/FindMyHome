@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Victor DESSENNE
 """The registry and the adapter contract.
 
 There is little to run here: the contract is a `Protocol`, so what actually proves an adapter
@@ -7,13 +9,18 @@ registry names what it claims to name, and that an unknown site is a `None`, not
 
 from __future__ import annotations
 
+import importlib
+import sys
+import types
 from collections.abc import Iterable, Iterator
+from pathlib import Path
 
 import pytest
 
 from findmyhome.config import Search
 from findmyhome.fetch import Fetcher
 from findmyhome.listing import Listing
+from findmyhome.sites import base
 from findmyhome.sites.base import SITES, Site, build
 
 
@@ -67,3 +74,37 @@ def test_every_registered_adapter_is_named_after_its_key(
     adapter = build(name, fetcher, search)
     assert adapter is not None
     assert adapter.name == name
+
+
+def test_a_private_overlay_joins_the_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The mechanism the public/private split rests on: `findmyhome_local` adds adapters without
+    this repository knowing they exist."""
+    overlay = types.ModuleType("findmyhome_local")
+    overlay.SITES = {"private": Minimal}  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "findmyhome_local", overlay)
+    try:
+        reloaded = importlib.reload(base)
+        assert reloaded.SITES["private"] is Minimal
+        assert "orpi" in reloaded.SITES, "the overlay adds, it does not replace"
+    finally:
+        monkeypatch.undo()
+        importlib.reload(base)
+
+
+def test_a_broken_overlay_is_raised_not_swallowed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Principle 6 turned on ourselves: a private adapter that fails to import must be loud.
+    A bare `except ImportError` here would make it vanish instead of reporting it."""
+    package = tmp_path / "findmyhome_local"
+    package.mkdir()
+    (package / "__init__.py").write_text("import httpx_typo\n")
+    monkeypatch.syspath_prepend(tmp_path)
+    sys.modules.pop("findmyhome_local", None)
+    try:
+        with pytest.raises(ModuleNotFoundError, match="httpx_typo"):
+            importlib.reload(base)
+    finally:
+        monkeypatch.undo()
+        sys.modules.pop("findmyhome_local", None)
+        importlib.reload(base)

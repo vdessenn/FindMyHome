@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Victor DESSENNE
 """The `Listing` dataclass and its identity — principle 5 of ARCHITECTURE.md.
 
 Sitemaps expose no per-listing `lastmod` and agency references are unstable, so "new" means

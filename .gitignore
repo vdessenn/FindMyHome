@@ -28,3 +28,6 @@ __pycache__/
 .mypy_cache/
 .coverage
 htmlcov/
+
+# Private adapter overlay, kept in its own repository.
+findmyhome_local/

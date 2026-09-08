@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Victor DESSENNE
 """The core: identity, price history, removals, and the principle 6 guard rail.
 
 Two properties matter more than the rest. A second identical run must report nothing — a moving

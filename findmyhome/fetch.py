@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Victor DESSENNE
 """Polite HTTP client — principle 4 of ARCHITECTURE.md: polite by default, never work around.
 
 `robots.txt` obeyed, one request per second per domain, honest `User-Agent` pointing at the

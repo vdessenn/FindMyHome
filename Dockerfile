@@ -17,7 +17,7 @@ FROM python:3.13-slim-bookworm
 
 LABEL org.opencontainers.image.title="findmyhome" \
       org.opencontainers.image.source="https://github.com/vdessenn/FindMyHome" \
-      org.opencontainers.image.licenses="MIT"
+      org.opencontainers.image.licenses="AGPL-3.0-only"
 
 COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"

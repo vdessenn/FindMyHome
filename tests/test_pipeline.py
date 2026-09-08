@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Victor DESSENNE
 """The pipeline: what gets downloaded, what gets kept, and what counts as a breakage.
 
 Two properties carry this module. A listing we already know must survive the filter even once it

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Victor DESSENNE
 """The polite client, tested without a network: politeness, retry, absence, cache."""
 
 from __future__ import annotations

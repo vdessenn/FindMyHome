@@ -63,6 +63,15 @@ versioning: [SemVer](https://semver.org/).
 
 - Documentation split by reader: `README.md` for whoever uses the tool, `ARCHITECTURE.md` for
   whoever writes an adapter. Everything published is now in English.
+- **Licence: MIT to `AGPL-3.0-only`** (2026-09-08). The project is meant to be offered as a
+  service one day, and the AGPL is the only licence whose section 13 stops a third party from
+  running a closed fork as a competing service. Dual licensing is documented in `LICENSING.md`,
+  and `CONTRIBUTING.md` now asks contributors for the copyright assignment it depends on.
+  Commits up to `b5c3a1a` stay MIT for whoever already holds them — the change is prospective.
+- `findmyhome/sites/orpi.py` parses through selectolax's lexbor backend (Apache-2.0) instead of
+  Modest (LGPL-2.1): identical API, and no relink obligation on the standalone binary.
+- `findmyhome/sites/base.py` merges an optional `findmyhome_local` package into the registry,
+  so private adapters can be added without touching this repository.
 
 ### Removed
 

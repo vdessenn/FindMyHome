@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Victor DESSENNE
 """Site adapters — one module per site, and nothing else anywhere.
 
 Principle 1: adding a site costs one file here plus one entry in the configuration. What an

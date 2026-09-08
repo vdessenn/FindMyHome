@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Victor DESSENNE
 """FindMyHome — aggregates property listings from small estate agencies."""
 
 from importlib.metadata import PackageNotFoundError, version

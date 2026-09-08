@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Victor DESSENNE
 """The Orpi adapter — principle 3: in through the sitemap, never through the search pages.
 
 Three things about this site shaped the module.
@@ -19,7 +21,9 @@ from collections.abc import Iterable
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
-from selectolax.parser import HTMLParser
+# selectolax ships two backends: Modest (LGPL-2.1) and lexbor (Apache-2.0). We take lexbor,
+# whose licence carries no relink obligation for the standalone binary. The API is identical.
+from selectolax.lexbor import LexborHTMLParser
 
 from findmyhome.config import Search
 from findmyhome.fetch import Fetcher, FetchError
@@ -53,12 +57,12 @@ _POSTCODE = re.compile(r"^\d{5}$")
 _NUMBER = re.compile(r"\d[\d\s]*(?:[.,]\d+)?")
 
 
-def _meta(tree: HTMLParser, prop: str) -> str | None:
+def _meta(tree: LexborHTMLParser, prop: str) -> str | None:
     node = tree.css_first(f'meta[property="{prop}"]')
     return None if node is None else node.attributes.get("content")
 
 
-def _analytics(tree: HTMLParser) -> dict[str, str] | None:
+def _analytics(tree: LexborHTMLParser) -> dict[str, str] | None:
     """The page's analytics block as a flat table, or None when the page is not a listing."""
     for node in tree.css("script"):
         text = node.text()
@@ -84,7 +88,7 @@ def _pretty(value: str | None) -> str | None:
     return value.replace("-", " ").title() if value else None
 
 
-def _surface(tree: HTMLParser, data: dict[str, str]) -> float | None:
+def _surface(tree: LexborHTMLParser, data: dict[str, str]) -> float | None:
     """The living space, from whichever of its two homes has it on this page.
 
     The analytics block writes it with a dash for a decimal separator (`105-3`), the same way it
@@ -176,7 +180,7 @@ class Orpi:
         return True if partial is None else self.search.matches(partial)
 
     def parse(self, url: str, html: str) -> Listing | None:
-        tree = HTMLParser(html)
+        tree = LexborHTMLParser(html)
         data = _analytics(tree)
         if data is None or not data.get("prdref"):
             return None  # the generic page Orpi serves for a listing that is gone

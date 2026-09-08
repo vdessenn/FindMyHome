@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Victor DESSENNE
 """SQLite: upserts, price history, removals — and the principle 6 guard rail.
 
 The database is the backbone of the system, not a cache: "new" means "absent from here"

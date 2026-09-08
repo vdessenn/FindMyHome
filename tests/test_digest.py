@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Victor DESSENNE
 """The email: what it says, what it escapes, and what it refuses to send.
 
 The rendering is a pure function, so most of this file reads values off a string. The one property

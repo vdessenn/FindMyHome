@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Victor DESSENNE
 """The command line — principle 7: identical by hand, from cron, from systemd or from a CI.
 
 Everything comes from the configuration file and the environment; nothing from an absolute path

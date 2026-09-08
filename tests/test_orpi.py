@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Victor DESSENNE
 """The Orpi adapter, offline, on pruned captures of real pages.
 
 What is worth pinning here is what the site actually does, not what an adapter would like it to

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Victor DESSENNE
 """The email: one digest for every enabled site, rendered by hand and sent over SMTP.
 
 f-strings rather than a template engine, under the condition ARCHITECTURE.md sets for reopening

@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Aggregates property listings from small estate agency websites into one digest email"
 readme = "README.md"
 requires-python = ">=3.11"
-license = "MIT"
+license = "AGPL-3.0-only"
 license-files = ["LICENSE"]
 authors = [{ name = "Victor Dessenne", email = "83450047+vdessenn@users.noreply.github.com" }]
 keywords = ["real-estate", "scraping", "sitemap", "email-digest", "python", "self-hosted"]
@@ -67,3 +67,9 @@ exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:"]
 [tool.mypy]
 files = ["findmyhome", "tests"]
 strict = true
+
+# The private adapter overlay lives outside this repository (see findmyhome/sites/base.py).
+# Absent by design, so mypy must not treat its absence as an error.
+[[tool.mypy.overrides]]
+module = "findmyhome_local.*"
+ignore_missing_imports = true

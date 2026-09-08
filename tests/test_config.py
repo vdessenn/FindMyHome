@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Victor DESSENNE
 """Configuration loading: strict, and it reports every problem at once.
 
 A config file is edited by hand. Stopping on the first error means as many runs as there are

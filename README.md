@@ -77,8 +77,11 @@ a Docker timer). The program behaves identically started by hand or by a machine
 
 The pipeline, the adapter contract and the data model are described in
 [ARCHITECTURE.md](ARCHITECTURE.md). Adding a site should mean one file in `sites/`, one entry in
-the config, and nothing else.
+the config, and nothing else. [CONTRIBUTING.md](CONTRIBUTING.md) covers the crawling rules a
+pull request has to honour, and the copyright assignment dual licensing depends on.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+AGPL-3.0-only — see [LICENSE](LICENSE). Running your own copy triggers no obligation; modifying
+it and offering it to others does. A commercial licence is available for cases the AGPL does not
+suit: [LICENSING.md](LICENSING.md).

@@ -199,8 +199,9 @@ findmyhome/
     store.py         # SQLite: upsert, diff, price history
     digest.py        # HTML rendering + SMTP send
     sites/
-        base.py      # Site Protocol + registry
+        base.py      # Site Protocol + registry + private overlay
         orpi.py
+findmyhome_local/    # optional, git-ignored: private adapters (see below)
 config.example.toml
 tests/test_store.py
 tests/test_orpi.py
@@ -210,8 +211,18 @@ tests/fixtures/      # pruned real pages, offline tests
 Deliberately flat: six modules, no extra abstraction layer until a second use case demands one.
 
 Every module of that tree now exists; `sites/` holds one adapter, and a second one is what will
-prove principle 1. The tests are `test_smoke`, `test_fetch`, `test_listing`, `test_config`,
-`test_search`, `test_store`, `test_sites`, `test_pipeline`, `test_orpi` and `test_digest`.
+prove principle 1.
+
+`findmyhome_local` is the one part of the tree this repository does not contain. Adapters for
+small agencies are the maintainer's own research and live in a separate private repository, so
+`base.py` merges that package into `SITES` when it happens to be importable and carries on
+without it when it is not. Nothing else in the codebase knows the difference: a private adapter
+honours the same `Site` contract and goes through the same pipeline. The registry catches only
+`ModuleNotFoundError` naming `findmyhome_local` itself - an overlay that is present but fails to
+import is raised, not swallowed, because principle 6 applies to our own code too.
+
+The tests are `test_smoke`, `test_fetch`, `test_listing`, `test_config`, `test_search`,
+`test_store`, `test_sites`, `test_pipeline`, `test_orpi` and `test_digest`.
 
 ## Development
 

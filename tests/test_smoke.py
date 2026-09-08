@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Victor DESSENNE
 """The command line: it must say the truth about what it did, and nothing more.
 
 These tests run the real `main`, so they deliberately restrict every `run` to `laforet` - the site
