@@ -32,6 +32,17 @@ versioning: [SemVer](https://semver.org/).
   marks nothing as removed; the comparison reads the last run that did not fail.
 - A listing already in the database keeps being tracked even when it no longer matches the
   criteria, so a price rise past `price_max` is reported as a rise and not as a removal.
+- `findmyhome/sites/base.py`: the adapter contract as a `Protocol` and the site registry. An
+  adapter inherits nothing — mypy `--strict` checks its shape against the registry, so principle 1
+  is enforced before runtime rather than during it. A configured site with no adapter is named on
+  stderr and skipped, never fatal.
+- The pipeline itself: `run` walks discover → prefilter → fetch → parse → filter → diff for every
+  enabled site, and prints what moved. A listing already in the database skips the filter, so a
+  price rise past `price_max` is reported as a rise.
+- A site ending its run on an anomaly makes `run` exit 1: until the digest exists, the exit code
+  is the only way a scheduler can hear about a broken scraper.
+- `run --dry-run` now collects for real and prints the extracted fields, so an adapter can be
+  eyeballed. It opens an existing database read-only and never creates one.
 - `[storage] database` configuration key, relative by default so the Docker image's `/data`
   working directory is enough to place it.
 

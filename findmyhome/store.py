@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
 from typing import cast
+from urllib.parse import quote
 
 from findmyhome.listing import Listing, Transaction
 
@@ -130,17 +131,28 @@ def _to_listing(row: sqlite3.Row) -> Listing:
 
 
 class Store:
-    """The listing database. Open it, diff a site's run against it, close it."""
+    """The listing database. Open it, diff a site's run against it, close it.
+
+    `create=False` opens it read-only and skips the schema: that is what `--dry-run` needs to read
+    the known identities without so much as touching the file.
+    """
 
     SCHEMA_VERSION = 1
 
-    def __init__(self, path: Path | str) -> None:
+    def __init__(self, path: Path | str, *, create: bool = True) -> None:
         path = Path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(path)
+        if create:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self._conn = sqlite3.connect(path)
+        else:
+            # `--dry-run` promises to write nothing: a promise SQLite itself enforces beats one
+            # the caller has to remember. The file must already exist - opening it must not
+            # create it, which is exactly what `mode=ro` refuses to do.
+            self._conn = sqlite3.connect(f"file:{quote(str(path))}?mode=ro", uri=True)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
-        self._migrate()
+        if create:
+            self._migrate()
 
     # -- API ---------------------------------------------------------------
 

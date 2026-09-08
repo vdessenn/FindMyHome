@@ -1,7 +1,8 @@
 """The command line: it must say the truth about what it did, and nothing more.
 
-There is no adapter yet, so `run` can only load the configuration and open the database. That is
-exactly what these tests pin - including the fact that `--dry-run` writes nothing at all.
+These tests run the real `main`, so they deliberately restrict every `run` to `laforet` - the site
+the example configuration enables and no adapter serves yet. That keeps the smoke tests offline;
+what the pipeline does once an adapter answers is `test_pipeline.py`'s job.
 """
 
 from __future__ import annotations
@@ -37,7 +38,7 @@ def test_no_command_prints_help() -> None:
 
 def test_run_opens_the_database(tmp_path: Path, config: Path) -> None:
     database = tmp_path / "findmyhome.db"
-    assert main(["run", "--config", str(config), "--db", str(database)]) == 0
+    assert main(["run", "--site", "laforet", "--config", str(config), "--db", str(database)]) == 0
     assert database.exists()
 
 
@@ -46,13 +47,14 @@ def test_run_creates_the_database_where_the_config_says(
 ) -> None:
     """The default path is relative, so it follows the working directory (and Docker's /data)."""
     monkeypatch.chdir(tmp_path)
-    assert main(["run", "--config", str(config)]) == 0
+    assert main(["run", "--site", "laforet", "--config", str(config)]) == 0
     assert (tmp_path / "findmyhome.db").exists()
 
 
 def test_dry_run_writes_nothing(tmp_path: Path, config: Path) -> None:
     database = tmp_path / "findmyhome.db"
-    assert main(["run", "--dry-run", "--config", str(config), "--db", str(database)]) == 0
+    argv = ["run", "--dry-run", "--site", "laforet", "--config", str(config)]
+    assert main([*argv, "--db", str(database)]) == 0
     assert not database.exists(), "--dry-run means write nothing, database included"
 
 
@@ -76,7 +78,7 @@ def test_list_sites_names_the_enabled_sites(
     assert main(["list-sites", "--config", str(config)]) == 0
     out = capsys.readouterr().out
     assert "orpi" in out
-    assert "laforet" in out
+    assert "laforet\t(no adapter yet)" in out, "the listing has to say which sites can run"
 
 
 def test_a_site_absent_from_the_config_is_refused(
@@ -86,9 +88,12 @@ def test_a_site_absent_from_the_config_is_refused(
     assert "unknown" in capsys.readouterr().err
 
 
-def test_run_says_there_is_no_adapter_yet(
+def test_a_configured_site_without_an_adapter_is_named_and_skipped(
     tmp_path: Path, config: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Better a CLI that announces it collects nothing than one that pretends otherwise."""
-    main(["run", "--config", str(config), "--db", str(tmp_path / "db.sqlite")])
-    assert "no adapter" in capsys.readouterr().out.lower()
+    """Skipped, not fatal: the example configuration is allowed to describe more than exists."""
+    code = main(
+        ["run", "--site", "laforet", "--config", str(config), "--db", str(tmp_path / "d.db")]
+    )
+    assert code == 0
+    assert "laforet" in capsys.readouterr().err.lower()

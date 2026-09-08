@@ -107,6 +107,13 @@ class Site(Protocol):
         """Extract the fields. None if the page is not (or no longer) a valid listing."""
 ```
 
+**What counts as a breakage.** A `FetchError` or an adapter raising stops that site's collection
+and is passed to `diff` as an error: principle 6 then reports an anomaly and marks nothing as
+removed, while the listings seen before the failure are still recorded. A page that answers 404,
+one `robots.txt` disallows, and a `parse` returning `None` are answers rather than failures — they
+are skipped in silence. An adapter that raises is one that no longer understands the page, which
+is the HTML structure change principle 6 names.
+
 `Listing` is a frozen dataclass: `site`, `url`, `ref`, `title`, `price`, `surface`, `rooms`,
 `city`, `postcode`, `agency`, `photo_url`, `transaction` (`sale`/`rent`), `kind`
 (`house`/`flat`/…). Unknown fields are `None` — an incomplete adapter is still useful.
@@ -184,10 +191,10 @@ tests/fixtures/      # pruned real pages, offline tests
 
 Deliberately flat: six modules, no extra abstraction layer until a second use case demands one.
 
-That tree is the target shape. `digest.py` and `sites/` do not exist yet, so `run` opens its
-database and collects nothing — see the status note in [README.md](README.md). The tests that
-exist are `test_smoke`, `test_fetch`, `test_listing`, `test_config`, `test_search` and
-`test_store`.
+That tree is the target shape. `digest.py` and `sites/orpi.py` do not exist yet, so `run` walks
+the pipeline over an empty registry and says so — see the status note in [README.md](README.md).
+The tests that exist are `test_smoke`, `test_fetch`, `test_listing`, `test_config`, `test_search`,
+`test_store`, `test_sites` and `test_pipeline`.
 
 ## Development
 
