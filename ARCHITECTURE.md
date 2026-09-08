@@ -67,6 +67,7 @@ config.toml
     │
     ▼
 [7] digest        HTML rendering + SMTP send (nothing to send → no email)
+                  ← sent before the run is committed, see Data model
 ```
 
 Every stage is a pure function except `fetch` (network), `diff` (database read/write) and
@@ -127,8 +128,10 @@ agencies numbering their listings from 1 must not collide. Changing this rule do
 the database, it resets it: every listing would come back as new.
 
 A secondary fingerprint `(postcode, surface, rooms, price)` is meant to detect republications
-under a new URL and merely report them in the email. It is **not implemented yet** — it waits for
-the digest that would carry it, and for real data to measure its false positives on.
+under a new URL and merely report them in the email. It is **not implemented yet**: the digest
+that would carry it now exists, so what it still waits for is a run of real history to measure its
+false positives against — two houses of the same size at the same price in the same town are not a
+republication, and only data says how often that happens.
 
 ## Data model
 
@@ -146,6 +149,12 @@ site_run(site, ran_at, found_count, error)
 `ref` is stored even though the identity already encodes it: a removed listing is read back from
 its row to be displayed in the email, and a `Listing` that cannot be rebuilt exactly would not
 compute the same identity.
+
+**Recorded last, on purpose.** A run diffs, *then* sends, *then* commits. A listing written to the
+database is new exactly once (principle 5), so one stored before a delivery that fails would be new
+to nobody: the send therefore happens inside the transaction, and a `DigestError` rolls the whole
+run back for the next one to report again. A duplicate email is the failure this trades for, and it
+is the cheaper one by far.
 
 `site_run` is what arms principle 6: comparing against the previous `found_count` is what tells a
 quiet market apart from a broken scraper. The comparison reads the last run **with no error** —
@@ -169,8 +178,15 @@ Two, deliberately.
 
 **When Jinja2 gets reconsidered.** The titles, agencies and cities injected into the email come
 from scraped HTML. Jinja2 escapes automatically; with f-strings you have to call `html.escape()`
-(stdlib) on *every* field, with no safety net. If `digest.py` grows past a hundred lines, or if an
-escape is forgotten even once, Jinja2 becomes the right choice.
+(stdlib) on *every* field, with no safety net.
+
+The rule used to be "if `digest.py` grows past a hundred lines". `digest.py` is past it — and
+roughly half of it is SMTP delivery, which a template engine would not shorten by one line. The
+condition is therefore what it was always aiming at: **the rendering**. It stands as long as the
+markup stays under about fifty lines *and* every scraped value keeps reaching the HTML through a
+single escaping function, so that an escape cannot be remembered in one branch and forgotten in
+another. The day either half stops holding — a second template, a field interpolated directly —
+Jinja2 is the right choice and the dependency is worth it.
 
 ## Source tree
 
@@ -193,10 +209,9 @@ tests/fixtures/      # pruned real pages, offline tests
 
 Deliberately flat: six modules, no extra abstraction layer until a second use case demands one.
 
-That tree is the target shape. `digest.py` is what is still missing, so `run` collects, stores and
-prints what moved but sends no email — see the status note in [README.md](README.md). The tests
-that exist are `test_smoke`, `test_fetch`, `test_listing`, `test_config`, `test_search`,
-`test_store`, `test_sites`, `test_pipeline` and `test_orpi`.
+Every module of that tree now exists; `sites/` holds one adapter, and a second one is what will
+prove principle 1. The tests are `test_smoke`, `test_fetch`, `test_listing`, `test_config`,
+`test_search`, `test_store`, `test_sites`, `test_pipeline`, `test_orpi` and `test_digest`.
 
 ## Development
 

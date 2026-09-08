@@ -9,11 +9,13 @@ emptied market.
 
 from __future__ import annotations
 
+import smtplib
 from collections.abc import Iterable
 from pathlib import Path
 
 import httpx
 import pytest
+from conftest import FakeServer
 
 from findmyhome.__main__ import _run, collect
 from findmyhome.config import Config, Digest, Search, Smtp, Storage
@@ -196,7 +198,9 @@ def config(tmp_path: Path) -> Config:
         sites=("fake",),
         storage=Storage(database=tmp_path / "findmyhome.db"),
         digest=Digest(),
-        smtp=Smtp(host="smtp.test", port=587, sender="a@test", recipients=("b@test",)),
+        smtp=Smtp(
+            host="smtp.test", port=587, sender="a@test", recipients=("b@test",), password="x"
+        ),
     )
 
 
@@ -216,27 +220,40 @@ def run_once(
 
 
 def test_run_records_what_it_collected(
-    config: Config, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    config: Config,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    smtp_server: type[FakeServer],
 ) -> None:
     adapter = FakeSite({url_of("1"): make("1", 300000), url_of("2"): make("2", 320000)})
 
     assert run_once(config, adapter, monkeypatch) == 0
     assert "2 new" in capsys.readouterr().out
+    assert len(smtp_server.sent) == 1, "two new listings are worth an email"
     with Store(config.storage.database) as store:
         assert store.known_ids("fake") == {"fake:1", "fake:2"}
 
 
 def test_a_second_run_reports_nothing_new(
-    config: Config, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    config: Config,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    smtp_server: type[FakeServer],
 ) -> None:
     """The classic trap of this kind of system: a moving identity re-announces the whole market."""
     for _ in range(2):
         run_once(config, FakeSite({url_of("1"): make("1", 300000)}), monkeypatch)
-    assert "0 new" in capsys.readouterr().out.splitlines()[-1]
+    out = capsys.readouterr().out
+    assert "0 new" in out
+    assert "nothing to report" in out
+    assert len(smtp_server.sent) == 1, "a calm market is not worth an email"
 
 
 def test_a_failure_marks_nothing_as_removed_and_exits_one(
-    config: Config, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    config: Config,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    smtp_server: type[FakeServer],
 ) -> None:
     run_once(config, FakeSite({url_of("1"): make("1", 300000)}), monkeypatch)
 
@@ -248,14 +265,44 @@ def test_a_failure_marks_nothing_as_removed_and_exits_one(
     assert "anomaly" in capsys.readouterr().err.lower()
 
 
-def test_dry_run_neither_creates_nor_writes_the_database(
-    config: Config, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+def test_dry_run_prints_the_digest_and_writes_nothing(
+    config: Config,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    smtp_server: type[FakeServer],
 ) -> None:
+    """It shows the very digest that would be sent - computed on a copy nobody keeps."""
     adapter = FakeSite({url_of("1"): make("1", 300000)})
 
     assert run_once(config, adapter, monkeypatch, dry_run=True) == 0
     assert not config.storage.database.exists(), "--dry-run means write nothing, database included"
-    assert "fake:1" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "New listings" in out
+    assert url_of("1") in out
+    assert smtp_server.sent == [], "--dry-run sends nothing either"
+
+
+def test_a_digest_that_cannot_be_delivered_records_nothing(
+    config: Config,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    smtp_server: type[FakeServer],
+) -> None:
+    """The property the send-then-commit order exists for.
+
+    A listing stored but never mailed would be new exactly once, to nobody. So a delivery that
+    fails must leave the database as it was, and the next run must announce it all over again.
+    """
+    smtp_server.failure = smtplib.SMTPServerDisconnected("the server hung up")
+    assert run_once(config, FakeSite({url_of("1"): make("1", 300000)}), monkeypatch) == 1
+    with Store(config.storage.database) as store:
+        assert store.known_ids("fake") == set(), "a run nobody heard about never happened"
+
+    smtp_server.failure = None
+    capsys.readouterr()
+    assert run_once(config, FakeSite({url_of("1"): make("1", 300000)}), monkeypatch) == 0
+    assert "1 new" in capsys.readouterr().out
+    assert len(smtp_server.sent) == 1
 
 
 def test_a_site_without_an_adapter_is_skipped_not_fatal(

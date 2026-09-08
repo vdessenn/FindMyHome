@@ -41,8 +41,13 @@ versioning: [SemVer](https://semver.org/).
   price rise past `price_max` is reported as a rise.
 - A site ending its run on an anomaly makes `run` exit 1: until the digest exists, the exit code
   is the only way a scheduler can hear about a broken scraper.
-- `run --dry-run` now collects for real and prints the extracted fields, so an adapter can be
-  eyeballed. It opens an existing database read-only and never creates one.
+- `findmyhome/digest.py`: the email. One digest for every enabled site, as HTML with a plain-text
+  alternative, sections for new listings, price drops, price rises, removals and anomalies.
+  Nothing moved means no email — but an anomaly is always worth one, even when the market is calm.
+- The digest is **sent before the run is committed**: a delivery that fails rolls the database
+  back, so the news is reported again next time instead of being new to nobody.
+- `run --dry-run` prints the very digest it would have sent, computed on a throwaway copy of the
+  database. The real file is never opened for writing, not even to create it.
 - `findmyhome/sites/orpi.py`: the first adapter. It enters through the sitemap (principle 3),
   reads the transaction, kind, rooms, town and postcode off the URL slug to avoid downloading
   what cannot match, and extracts the fields from the page. A listing that no longer exists is

@@ -6,11 +6,10 @@ small estate agencies, instead of manually doing the rounds of a dozen different
 The email only contains what moved: **new listings, price drops, price rises, removals**.
 The goal is to stop opening any site at all until an email flags something.
 
-> **Status: it collects. What is missing is the email.** `findmyhome run` reads a site's sitemap,
-> downloads the listings that can match, stores them and prints what moved — new listings, price
-> changes, removals. The digest that mails all of it is the next step, and one site (Orpi) is
-> served so far. The design — principles, pipeline, adapter contract, data model — lives in
-> [ARCHITECTURE.md](ARCHITECTURE.md).
+> **Status: it works end to end**, for one site (Orpi) so far. `findmyhome run` reads the sitemap,
+> downloads the listings that can match, stores them and emails what moved. What is left is more
+> adapters — the second one is what will prove the design. The design itself — principles,
+> pipeline, adapter contract, data model — lives in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## How it behaves
 

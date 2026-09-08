@@ -14,7 +14,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
 from typing import cast
-from urllib.parse import quote
 
 from findmyhome.listing import Listing, Transaction
 
@@ -131,28 +130,17 @@ def _to_listing(row: sqlite3.Row) -> Listing:
 
 
 class Store:
-    """The listing database. Open it, diff a site's run against it, close it.
-
-    `create=False` opens it read-only and skips the schema: that is what `--dry-run` needs to read
-    the known identities without so much as touching the file.
-    """
+    """The listing database. Open it, diff a site's run against it, close it."""
 
     SCHEMA_VERSION = 1
 
-    def __init__(self, path: Path | str, *, create: bool = True) -> None:
+    def __init__(self, path: Path | str) -> None:
         path = Path(path)
-        if create:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            self._conn = sqlite3.connect(path)
-        else:
-            # `--dry-run` promises to write nothing: a promise SQLite itself enforces beats one
-            # the caller has to remember. The file must already exist - opening it must not
-            # create it, which is exactly what `mode=ro` refuses to do.
-            self._conn = sqlite3.connect(f"file:{quote(str(path))}?mode=ro", uri=True)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self._conn = sqlite3.connect(path)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
-        if create:
-            self._migrate()
+        self._migrate()
 
     # -- API ---------------------------------------------------------------
 
@@ -173,18 +161,23 @@ class Store:
         *,
         error: str | None = None,
         now: datetime | None = None,
+        commit: bool = True,
     ) -> Changes:
         """Record what this run saw and report what moved. Reads and writes, in one transaction.
 
         `error` is what the caller hit while collecting (a `FetchError`, a parser blowing up):
         pass it and no removal is computed — half a run is not evidence of absence.
+
+        `commit=False` leaves the transaction open for the caller to `commit` or `rollback`. That
+        is what lets the digest be *sent before* anything is recorded: a listing stored but never
+        mailed is a listing that is new only once, and nobody ever saw it (principle 5).
         """
         stamp = (now or datetime.now(UTC)).isoformat()
         # A sitemap can list the same listing twice; two inserts of one identity would abort the
         # whole run. Last occurrence wins, and the run count is what we actually stored.
         seen = {listing.id: listing for listing in listings}
 
-        with self._conn:
+        try:
             before = {
                 row["id"]: row
                 for row in self._conn.execute("SELECT * FROM listing WHERE site = ?", (site,))
@@ -202,6 +195,11 @@ class Store:
                 "INSERT INTO site_run (site, ran_at, found_count, error) VALUES (?, ?, ?, ?)",
                 (site, stamp, len(seen), error),
             )
+        except Exception:
+            self._conn.rollback()
+            raise
+        if commit:
+            self._conn.commit()
 
         return Changes(
             site=site,
@@ -210,6 +208,13 @@ class Store:
             removed=removed,
             anomaly=anomaly,
         )
+
+    def commit(self) -> None:
+        self._conn.commit()
+
+    def rollback(self) -> None:
+        """Give up everything since the last commit: the run leaves no trace and repeats itself."""
+        self._conn.rollback()
 
     def close(self) -> None:
         self._conn.close()

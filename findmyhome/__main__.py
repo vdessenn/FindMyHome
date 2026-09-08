@@ -3,25 +3,32 @@
 Everything comes from the configuration file and the environment; nothing from an absolute path
 baked into the code.
 
-Stages 1 to 6 of the pipeline are run from here: the CLI is what owns the HTTP client and the
-database, so it is what drives the loop. `collect` is a function of its own on purpose — a
-pipeline that can only be exercised through argparse cannot be tested. It moves to a module of its
-own the day `digest.py` needs to call it without a command line.
+The whole pipeline is run from here: the CLI is what owns the HTTP client and the database, so it
+is what drives the loop. `collect` is a function of its own on purpose — a pipeline that can only
+be exercised through argparse cannot be tested.
 
-Exit codes: 0 fine, 1 a site reported an anomaly, 2 the configuration or the command line is
-wrong. An anomaly has to reach the scheduler somehow, and until the digest exists the exit code is
-the only channel there is — a cron that stays quiet about a broken scraper would undo principle 6.
+The order of the last three steps is the load-bearing one: diff, then **send**, then commit. A
+listing recorded but never mailed is new exactly once and nobody ever saw it, so a delivery that
+fails takes the whole run down with it and the next one reports the same news again.
+
+Exit codes: 0 fine, 1 a site reported an anomaly or the digest could not be delivered, 2 the
+configuration or the command line is wrong. An anomaly reaches the mailbox, and the exit code
+carries it to the scheduler as well — the mail itself is the thing that may not have left.
 """
 
 from __future__ import annotations
 
 import argparse
+import shutil
 import sys
-from collections.abc import Sequence
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from findmyhome import __version__
 from findmyhome.config import Config, ConfigError, Search, load
+from findmyhome.digest import DigestError, is_quiet, render, send
 from findmyhome.fetch import Fetcher, FetchError
 from findmyhome.listing import Listing
 from findmyhome.sites.base import SITES, Site, build
@@ -73,37 +80,6 @@ def collect(
     return listings, None
 
 
-def _describe(listing: Listing) -> str:
-    price = f"{listing.price} EUR" if listing.price is not None else "price unknown"
-    surface = f"{listing.surface:g} m2" if listing.surface is not None else "? m2"
-    rooms = f"{listing.rooms} rooms" if listing.rooms is not None else "? rooms"
-    return f"{price}  {surface}  {rooms}  {listing.city or '?'}  {listing.url}"
-
-
-def _anomaly(message: str) -> bool:
-    print(f"findmyhome: anomaly - {message}", file=sys.stderr)
-    return True
-
-
-def _record(store: Store, site: str, listings: Sequence[Listing], error: str | None) -> bool:
-    changes: Changes = store.diff(site, listings, error=error)
-    print(
-        f"{site}: {len(changes.new)} new, {len(changes.price_changes)} price change(s), "
-        f"{len(changes.removed)} removed"
-    )
-    return False if changes.anomaly is None else _anomaly(changes.anomaly)
-
-
-def _preview(site: str, listings: Sequence[Listing], error: str | None, *, known: bool) -> bool:
-    """`--dry-run`: show the extracted fields, which is the only way to eyeball an adapter."""
-    print(f"{site}: {len(listings)} listing(s) retained, nothing written")
-    if not known:
-        print(f"{site}: no database yet, so nothing here is known to be new")
-    for listing in listings:
-        print(f"  {listing.id}  {_describe(listing)}")
-    return False if error is None else _anomaly(f"{site}: {error}")
-
-
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="findmyhome",
@@ -131,6 +107,37 @@ def _enabled(config: Config, only: str | None) -> tuple[str, ...] | None:
     return (only,) if only in config.sites else None
 
 
+@contextmanager
+def _database(path: Path, *, dry_run: bool) -> Iterator[Store]:
+    """The database a run works on: the real file, or a throwaway copy when it is a dry run.
+
+    Copying is what lets `--dry-run` show the very digest that would be sent — same code path,
+    same diff — while leaving the real file untouched, down to its modification time.
+    """
+    if not dry_run:
+        with Store(path) as store:
+            yield store
+        return
+    with tempfile.TemporaryDirectory() as scratch:
+        preview = Path(scratch) / "preview.db"
+        if path.exists():
+            shutil.copy2(path, preview)
+        with Store(preview) as store:
+            yield store
+
+
+def _summarise(changes: Changes) -> bool:
+    """One line per site on stdout, anomalies on stderr. True when the run must report failure."""
+    print(
+        f"{changes.site}: {len(changes.new)} new, {len(changes.price_changes)} price change(s), "
+        f"{len(changes.removed)} removed"
+    )
+    if changes.anomaly is None:
+        return False
+    print(f"findmyhome: anomaly - {changes.anomaly}", file=sys.stderr)
+    return True
+
+
 def _run(
     config: Config,
     sites: tuple[str, ...],
@@ -139,30 +146,40 @@ def _run(
     dry_run: bool,
     fetcher: Fetcher,
 ) -> int:
-    # A dry run never creates the database, and reads an existing one read-only: "write nothing"
-    # is a claim the file system gets to enforce rather than a comment.
-    store: Store | None = None
-    if not dry_run:
-        store = Store(database)
-    elif database.exists():
-        store = Store(database, create=False)
-
-    failed = False
-    try:
+    with _database(database, dry_run=dry_run) as store:
+        runs: list[Changes] = []
         for name in sites:
             adapter = build(name, fetcher, config.search)
             if adapter is None:
                 print(f"findmyhome: {name}: no adapter yet - skipped", file=sys.stderr)
                 continue
-            known = store.known_ids(name) if store is not None else set()
-            listings, error = collect(adapter, fetcher, config.search, known)
-            if dry_run or store is None:
-                failed = _preview(name, listings, error, known=store is not None) or failed
-            else:
-                failed = _record(store, name, listings, error) or failed
-    finally:
-        if store is not None:
-            store.close()
+            # Every network call happens here, before a single write: the transaction opened by
+            # the first diff stays open until the digest has left, and has no reason to be long.
+            listings, error = collect(adapter, fetcher, config.search, store.known_ids(name))
+            runs.append(store.diff(name, listings, error=error, commit=False))
+
+        failed = any([_summarise(changes) for changes in runs])
+        mail = render(runs)
+
+        if dry_run:
+            print(f"\n{mail.subject}\n\n{mail.text}")
+            return EXIT_FAILED if failed else EXIT_OK
+
+        if is_quiet(runs) and not config.digest.send_when_empty:
+            print("findmyhome: nothing to report, no digest sent")
+        else:
+            try:
+                send(config.smtp, mail)
+            except DigestError as error:
+                print(f"findmyhome: {error}", file=sys.stderr)
+                store.rollback()
+                print(
+                    "findmyhome: nothing was recorded, so the next run reports it again",
+                    file=sys.stderr,
+                )
+                return EXIT_FAILED
+            print(f"findmyhome: sent to {', '.join(config.smtp.recipients)} - {mail.subject}")
+        store.commit()
     return EXIT_FAILED if failed else EXIT_OK
 
 
