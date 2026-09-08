@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import tomllib
+import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TypeVar, cast
@@ -44,9 +45,14 @@ def _under(value: float | None, floor: int | None) -> bool:
 
 
 def _fold(text: str) -> str:
-    # ponytail: case and spacing only. Strip accents (unicodedata NFD) the day a site writes
-    # "REZE" for "Rezé" - not before, since it would also merge names that differ by an accent.
-    return text.strip().casefold()
+    # Case, accents and separators. The condition this used to wait for is met: sites publish
+    # their cities as URL slugs, so "Rezé" arrives as "reze" and "Saint-Nazaire" as either
+    # "saint-nazaire" or "Saint Nazaire" depending on where it was read. A config written by a
+    # human matches none of them otherwise. The price is that two names differing only by an
+    # accent now merge - a far smaller failure than a criterion that silently matches nothing.
+    unaccented = unicodedata.normalize("NFD", text)
+    plain = "".join(c for c in unaccented if not unicodedata.combining(c))
+    return " ".join(plain.replace("-", " ").split()).casefold()
 
 
 @dataclass(frozen=True, slots=True)

@@ -43,6 +43,14 @@ versioning: [SemVer](https://semver.org/).
   is the only way a scheduler can hear about a broken scraper.
 - `run --dry-run` now collects for real and prints the extracted fields, so an adapter can be
   eyeballed. It opens an existing database read-only and never creates one.
+- `findmyhome/sites/orpi.py`: the first adapter. It enters through the sitemap (principle 3),
+  reads the transaction, kind, rooms, town and postcode off the URL slug to avoid downloading
+  what cannot match, and extracts the fields from the page. A listing that no longer exists is
+  answered with a generic page rather than a 404, so the parser reports it as gone rather than
+  trusting the status code; a sitemap it cannot read is an anomaly, never an empty market.
+- Cities are now compared without case, accents or separators: sites publish them as URL slugs,
+  where `Rezé` is written `reze` and `Saint-Nazaire` either way. A criterion that silently
+  matched nothing was the worse failure.
 - `[storage] database` configuration key, relative by default so the Docker image's `/data`
   working directory is enough to place it.
 

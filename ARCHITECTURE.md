@@ -84,8 +84,10 @@ if listing.id in store.known_ids(site) or search.matches(listing):
 "Removed" then means exactly one thing: gone from the site.
 
 **Key discovery**: listing slugs already encode the criteria — for example
-`annonce-vente-maison-t4-villers-sur-meuse-55220-…`. Stage 2 exploits this to download only a
-handful of pages out of the ~1,000 URLs in a sitemap.
+`annonce-vente-maison-t4-villers-sur-meuse-55220-…`. Stage 2 exploits this to download a handful
+of pages out of a sitemap that holds tens of thousands: on the first live run, 14 URLs out of
+44,722. The prefilter is the same `Search.matches` as stage 5, applied to what the URL gives away
+— an unknown field never rejects, so nothing is skipped in silence.
 
 ## The adapter contract
 
@@ -185,16 +187,16 @@ findmyhome/
         orpi.py
 config.example.toml
 tests/test_store.py
-tests/test_prefilter.py
+tests/test_orpi.py
 tests/fixtures/      # pruned real pages, offline tests
 ```
 
 Deliberately flat: six modules, no extra abstraction layer until a second use case demands one.
 
-That tree is the target shape. `digest.py` and `sites/orpi.py` do not exist yet, so `run` walks
-the pipeline over an empty registry and says so — see the status note in [README.md](README.md).
-The tests that exist are `test_smoke`, `test_fetch`, `test_listing`, `test_config`, `test_search`,
-`test_store`, `test_sites` and `test_pipeline`.
+That tree is the target shape. `digest.py` is what is still missing, so `run` collects, stores and
+prints what moved but sends no email — see the status note in [README.md](README.md). The tests
+that exist are `test_smoke`, `test_fetch`, `test_listing`, `test_config`, `test_search`,
+`test_store`, `test_sites`, `test_pipeline` and `test_orpi`.
 
 ## Development
 

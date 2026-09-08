@@ -66,6 +66,18 @@ def test_the_city_is_compared_without_case() -> None:
     assert search.matches(listing(city="SPRINGFIELD "))
 
 
+def test_the_city_is_compared_without_accents() -> None:
+    """Sites write their cities as URL slugs, so a config saying "Rezé" has to match "reze"."""
+    search = Search(transaction="sale", cities=("Rezé",))
+    assert search.matches(listing(city="reze"))
+
+
+def test_the_city_is_compared_without_its_separators() -> None:
+    """A slug hyphenates what a human spaces out; neither spelling may decide a match."""
+    search = Search(transaction="sale", cities=("Villers-sur-Meuse",))
+    assert search.matches(listing(city="Villers Sur Meuse"))
+
+
 def test_a_listing_placed_elsewhere_is_rejected() -> None:
     search = Search(transaction="sale", cities=("Springfield",), postcodes=("12345",))
     assert not search.matches(listing(city="Shelbyville", postcode="99999"))

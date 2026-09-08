@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Six real entries out of the 44,000 the live sitemap carries. No lastmod: there is none
+     to read, which is why newness comes from our database (principle 5). -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+        <loc>https://www.orpi.com/annonce-vente-maison-t5-nantes-44000-1849954c-7350-45e1-8601-132c34380a1c/</loc>
+    </url>
+    <url>
+        <loc>https://www.orpi.com/annonce-vente-maison-t4-reze-44400-c623e71d-6b04-4793-8236-b8f88be8fb80/</loc>
+    </url>
+    <url>
+        <loc>https://www.orpi.com/annonce-vente-appartement-t2-nantes-44000-eecc4f70-de4e-4c90-be20-6bd4485eeef1/</loc>
+    </url>
+    <url>
+        <loc>https://www.orpi.com/annonce-vente-maison-t8-nantes-44300-3f9c89e5-4f65-493a-8c11-8509345a6b7d/</loc>
+    </url>
+    <url>
+        <loc>https://www.orpi.com/annonce-vente-appartement-t3-francheville-69340-1394-028092-530/</loc>
+    </url>
+    <url>
+        <loc>https://www.orpi.com/annonce-vente-maison-t4-villers-sur-meuse-55220-7230-048927-180/</loc>
+    </url>
+</urlset>

@@ -17,6 +17,7 @@ from typing import Protocol
 from findmyhome.config import Search
 from findmyhome.fetch import Fetcher
 from findmyhome.listing import Listing
+from findmyhome.sites.orpi import Orpi
 
 
 class Site(Protocol):
@@ -46,7 +47,7 @@ class Site(Protocol):
         ...
 
 
-SITES: dict[str, Callable[[Fetcher, Search], Site]] = {}
+SITES: dict[str, Callable[[Fetcher, Search], Site]] = {"orpi": Orpi}
 
 
 def build(name: str, fetcher: Fetcher, search: Search) -> Site | None:
