@@ -23,6 +23,13 @@ versioning: [SemVer](https://semver.org/).
   re-downloading, and use the entries as the source for test fixtures.
 - `findmyhome/listing.py`: the `Listing` dataclass and the identity principle 5 rests on —
   `site:ref`, or the canonical URL when the site exposes no reference.
+- `findmyhome healthcheck [--max-age HOURS]`: principle 6 applied to the scheduler. Inside a run
+  a broken scraper reports an anomaly; around one, `send_when_empty = false` made a stopped cron
+  indistinguishable from a quiet market. The command exits 1 when an enabled site is stale, failed
+  or was never collected, reporting on the exit code so it still works when SMTP is the failure.
+  It refuses to create a missing database rather than hide the outage behind empty tables.
+- `Store.last_run(site)`: the most recent run for a site, error included — public counterpart of
+  the successful-run lookup the principle 6 guard rail already used.
 - `findmyhome/config.py`: TOML loading with strict validation. Every problem is reported at once,
   and an unknown key is an error rather than a silently ignored one. The search criteria live
   here too: an unknown field never rejects a listing, and the location matches on the postcode or

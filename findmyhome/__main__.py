@@ -26,6 +26,7 @@ import sys
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 
 from findmyhome import __version__
@@ -99,6 +100,19 @@ def _parser() -> argparse.ArgumentParser:
     sites = sub.add_parser("list-sites", help="List the sites enabled in the configuration.")
     sites.add_argument("--config", type=Path, default=DEFAULT_CONFIG, help="Configuration file.")
 
+    health = sub.add_parser(
+        "healthcheck", help="Check that every enabled site was collected recently enough."
+    )
+    health.add_argument("--config", type=Path, default=DEFAULT_CONFIG, help="Configuration file.")
+    health.add_argument("--db", type=Path, help="Database path, overriding the configuration.")
+    health.add_argument(
+        "--max-age",
+        type=float,
+        default=48.0,
+        metavar="HOURS",
+        help="Hours after which a site's last run counts as stale (default: 48).",
+    )
+
     return parser
 
 
@@ -107,6 +121,45 @@ def _enabled(config: Config, only: str | None) -> tuple[str, ...] | None:
     if only is None:
         return config.sites
     return (only,) if only in config.sites else None
+
+
+def _healthcheck(config: Config, database: Path, max_age: float) -> int:
+    """Whether every enabled site was collected recently enough, for a scheduler to act on.
+
+    Principle 6 lives inside a run: a broken scraper reports an anomaly and `run` exits 1. It did
+    not live around one. `send_when_empty = false` makes a silent day normal, so a cron that
+    stopped, an image that no longer starts and a quiet market all look alike from the outside.
+    This is what tells them apart, and it answers on the exit code rather than by email because it
+    has to work when SMTP is what broke.
+    """
+    if not database.exists():
+        print(f"findmyhome: no database at {database}", file=sys.stderr)
+        return EXIT_FAILED
+
+    now = datetime.now(UTC)
+    problems: list[str] = []
+    with Store(database) as store:
+        for site in config.sites:
+            last = store.last_run(site)
+            if last is None:
+                problems.append(f"{site}: never ran")
+                continue
+            hours = (now - last.ran_at).total_seconds() / 3600
+            # ponytail: one line per site, staleness first. A run both stale and failed is one
+            # problem to fix, not two to read.
+            if hours > max_age:
+                problems.append(
+                    f"{site}: last run {hours:.0f} h ago, over the {max_age:.0f} h limit"
+                )
+            elif last.error is not None:
+                problems.append(f"{site}: last run reported: {last.error}")
+
+    for problem in problems:
+        print(f"findmyhome: {problem}", file=sys.stderr)
+    if problems:
+        return EXIT_FAILED
+    print(f"{len(config.sites)} site(s) collected within the last {max_age:.0f} h")
+    return EXIT_OK
 
 
 @contextmanager
@@ -202,6 +255,9 @@ def main(argv: list[str] | None = None) -> int:
         for site in config.sites:
             print(f"{site}\t{'ready' if site in SITES else '(no adapter yet)'}")
         return EXIT_OK
+
+    if args.command == "healthcheck":
+        return _healthcheck(config, args.db or config.storage.database, args.max_age)
 
     sites = _enabled(config, args.site)
     if sites is None:

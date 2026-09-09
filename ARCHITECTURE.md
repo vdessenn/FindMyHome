@@ -192,7 +192,7 @@ Jinja2 is the right choice and the dependency is worth it.
 
 ```
 findmyhome/
-    __main__.py      # CLI: run, --dry-run, --site, list-sites
+    __main__.py      # CLI: run, --dry-run, --site, list-sites, healthcheck
     config.py        # TOML loading + validation
     listing.py       # Listing dataclass + identity computation
     fetch.py         # polite HTTP: robots, rate limit, retry

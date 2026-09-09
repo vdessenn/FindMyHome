@@ -60,6 +60,20 @@ committed.
 How often it runs is not part of the configuration: that belongs to the scheduler (cron, systemd,
 a Docker timer). The program behaves identically started by hand or by a machine.
 
+### Checking that it still runs
+
+`send_when_empty = false` means a quiet day sends nothing, so silence on its own cannot tell a
+calm market from a scraper that stopped:
+
+```bash
+findmyhome healthcheck --max-age 48
+```
+
+Exit 0 when every enabled site was collected inside that window. Exit 1 — naming the sites on
+stderr — when one is stale, carries an error from its last run, or was never collected at all.
+Point a watchdog at the exit code: it reports there rather than by email on purpose, so it still
+works when SMTP is what broke. It never writes to the database.
+
 ## Scope
 
 **In**: one complete adapter, the whole pipeline, SQLite, an HTML email with photo previews,

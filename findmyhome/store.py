@@ -94,6 +94,16 @@ class Changes:
     anomaly: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class Run:
+    """The last thing we know about one site's collection."""
+
+    site: str
+    ran_at: datetime
+    found_count: int
+    error: str | None
+
+
 def _fields(listing: Listing) -> tuple[object, ...]:
     """The mutable columns, in the order both statements above expect."""
     return (
@@ -209,6 +219,26 @@ class Store:
             price_changes=price_changes,
             removed=removed,
             anomaly=anomaly,
+        )
+
+    def last_run(self, site: str) -> Run | None:
+        """The most recent run for this site, successful or not. None if it never ran.
+
+        No `error IS NULL` here, unlike `_last_successful_count`: a run that failed is precisely
+        what a watchdog needs to see.
+        """
+        row = self._conn.execute(
+            "SELECT site, ran_at, found_count, error FROM site_run WHERE site = ? "
+            "ORDER BY ran_at DESC, rowid DESC LIMIT 1",
+            (site,),
+        ).fetchone()
+        if row is None:
+            return None
+        return Run(
+            site=row["site"],
+            ran_at=datetime.fromisoformat(row["ran_at"]),
+            found_count=int(row["found_count"]),
+            error=row["error"],
         )
 
     def commit(self) -> None:
