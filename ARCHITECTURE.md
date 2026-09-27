@@ -42,6 +42,73 @@ Seven principles arbitrate the project's decisions. When in doubt, come back her
    systemd or by a CI. No dependency on an absolute path or a particular environment: everything
    comes from the config and from environment variables.
 
+## The shape of the system
+
+Six modules in the core, one package of adapters, and three things outside the process: the
+sites, the database and the SMTP relay. The core reaches a site only through `sites/base.py`,
+which is where the private overlay grafts itself as well.
+
+```plantuml
+@startuml
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+actor "cron / systemd / CI / docker run" as sched
+file "config.toml" as cfg
+
+package "findmyhome  (the core)" {
+  [~__main~__\nCLI, run loop, transaction] as cli
+  [config\nTOML + Search criteria] as conf
+  [listing\nListing + identity] as lst
+  [fetch\nrobots.txt, 1 req/s, retry] as fx
+  [store\nSQLite + principle 6] as st
+  [digest\nrender + SMTP] as dg
+}
+
+package "findmyhome.sites" {
+  [base\nSite Protocol + SITES] as base
+  [orpi] as orpi
+}
+
+package "findmyhome_local\n(private, not in this repo)" {
+  [further adapters] as priv
+}
+
+cloud "Agency sites" as web
+database "SQLite\nfindmyhome.db" as db
+queue "SMTP relay" as relay
+
+sched --> cli
+cfg --> conf
+cli --> conf
+cli --> fx
+cli --> st
+cli --> dg
+cli --> base : build(name, fetcher, search)
+base --> orpi
+base ..> priv : overlay, when importable
+orpi --> fx : fetch(url)
+orpi ..> lst : creates
+fx --> web : HTTPS
+st --> db
+dg --> relay : SMTP
+
+note right of base
+  The only code that knows about a
+  particular site: **base** and the
+  adapters (principles 1 and 2).
+  A private adapter honours the same
+  contract and takes the same path.
+end note
+
+note bottom of cli
+  The scheduler stays outside (principle 7):
+  argv in, exit code out. 0 fine, 1 anomaly or
+  undelivered digest, 2 bad config or command line.
+end note
+@enduml
+```
+
 ## The pipeline
 
 ```
@@ -72,6 +139,81 @@ config.toml
 
 Every stage is a pure function except `fetch` (network), `diff` (database read/write) and
 `digest` (send). Stages 1 and 4 are the only ones that know about sites.
+
+The stages above say *what* happens. This says *when*, and it is the ordering of the last
+three steps that the rest of the design hangs on: diff, then send, then commit.
+
+```plantuml
+@startuml
+autonumber
+skinparam shadowing false
+
+actor "scheduler" as sched
+participant "~__main~__" as cli
+participant "Site (Orpi)" as site
+participant "Fetcher" as fx
+collections "agency site" as web
+participant "Search" as sr
+participant "Store" as st
+database "SQLite" as db
+participant "digest" as dg
+boundary "SMTP relay" as relay
+
+sched -> cli : run [~-~-site] [~-~-dry-run]
+cli -> cli : config.load("config.toml")
+
+loop each enabled site
+  cli -> site : build(name, fetcher, search)
+  cli -> st : known_ids(site)
+  cli -> site : discover()
+  site -> fx : fetch(sitemap)
+  fx -> web : GET sitemap.xml
+  note over fx
+    robots.txt, 1 req/s, retry 5xx.
+    A FetchError here is an anomaly,
+    never an empty market.
+  end note
+  loop each candidate URL
+    cli -> site : prefilter(url)
+    cli -> fx : fetch(url)
+    fx -> web : GET listing page
+    cli -> site : parse(url, html)
+    cli -> sr : matches(listing)
+    note over sr : stage 5, unknown ids only
+  end
+  cli -> st : diff(site, listings, error, commit=False)
+  st -> db : upsert, price_change, site_run
+  note over st, db : opens the transaction\nand leaves it **open**
+end
+
+== every network call is done; the transaction is still open ==
+
+cli -> dg : render(runs)
+alt quiet and not send_when_empty
+  cli -> st : commit()
+else something to report
+  cli -> dg : send(smtp, mail)
+  dg -> relay : EmailMessage, text + html
+  alt DigestError
+    cli -> st : rollback()
+    cli --> sched : exit 1, the next run reports it again
+  else delivered
+    cli -> st : commit()
+  end
+end
+
+note over cli, relay
+  **diff, then send, then commit.** A listing is new exactly once, so one
+  recorded before a delivery that failed would be new to nobody. The send
+  therefore happens inside the transaction, and a DigestError rolls the
+  whole run back. A duplicate email is the cheaper failure, and is the trade.
+end note
+@enduml
+```
+
+`fetch` returning `None` (404, 410, `robots.txt`) and `parse` returning `None` are answers,
+not failures, and are skipped in silence - the diagram leaves them implicit rather than
+drowning the transaction boundary in nested alternatives.
 
 **A listing we already know is never filtered out.** The prefilter reads the slug, which does
 not encode the price: a listing whose price rises past `price_max` is still discovered and still
@@ -110,6 +252,152 @@ class Site(Protocol):
         """Extract the fields. None if the page is not (or no longer) a valid listing."""
 ```
 
+What the contract sits in the middle of - and, on the right, what the core does with what an
+adapter hands back:
+
+```plantuml
+@startuml
+hide empty members
+skinparam shadowing false
+
+interface Site <<Protocol>> {
+  +name : str
+  +base_url : str
+  +discover() : Iterable[str]
+  +prefilter(url : str) : bool
+  +parse(url : str, html : str) : Listing | None
+}
+
+class Orpi {
+  +name = "orpi"
+  +base_url = "https://www.orpi.com"
+  +sitemap : str
+  +__init__(fetcher : Fetcher, search : Search)
+}
+Site <|.. Orpi : structural, checked by mypy
+
+note top of Site
+  The constructor is **not** in the Protocol:
+  it is in the registry's type,
+  SITES : dict[str, Callable[[Fetcher, Search], Site]]
+  Criteria and HTTP client are injected there, which
+  is why discover() and prefilter() take nothing else.
+end note
+
+class Listing <<frozen dataclass>> {
+  +site : str
+  +url : str
+  +ref : str | None
+  +title : str | None
+  +price : int | None
+  +surface : float | None
+  +rooms : int | None
+  +city : str | None
+  +postcode : str | None
+  +agency : str | None
+  +photo_url : str | None
+  +transaction : "sale" | "rent" | None
+  +kind : str | None
+  +id : str <<property>>
+}
+
+class Search <<frozen dataclass>> {
+  +transaction : Transaction
+  +kinds, cities, postcodes : tuple[str, ...]
+  +price_max, surface_min, rooms_min : int | None
+  +matches(listing : Listing) : bool
+}
+
+class Config <<frozen dataclass>> {
+  +search : Search
+  +sites : tuple[str, ...]
+  +storage : Storage
+  +digest : Digest
+  +smtp : Smtp
+}
+
+class Fetcher {
+  +delay = 1.0
+  +retries = 2
+  +cache_dir : Path | None
+  +fetch(url : str) : str | None
+  -_allowed(url) : bool
+  -_wait(host) : None
+}
+
+class Store {
+  +SCHEMA_VERSION = 1
+  +known_ids(site : str) : set[str]
+  +diff(site, listings, *, error, now, commit) : Changes
+  +last_run(site : str) : Run | None
+  +commit() / rollback() / close()
+  -_anomaly(site, error, found) : str | None
+}
+
+class Changes <<frozen dataclass>> {
+  +site : str
+  +new : list[Listing]
+  +price_changes : list[PriceChange]
+  +removed : list[Listing]
+  +anomaly : str | None
+}
+
+class PriceChange <<frozen dataclass>> {
+  +old_price : int
+  +new_price : int
+  +is_drop : bool <<property>>
+}
+
+class Run <<frozen dataclass>> {
+  +site : str
+  +ran_at : datetime
+  +found_count : int
+  +error : str | None
+}
+
+class Mail <<frozen dataclass>> {
+  +subject : str
+  +text : str
+  +html : str
+}
+
+class digest <<module>> {
+  +is_quiet(runs : Sequence[Changes]) : bool
+  +render(runs : Sequence[Changes]) : Mail
+  +send(smtp : Smtp, mail : Mail) : None
+  -_e(value : object) : str
+}
+
+Config *-- Search
+Orpi --> Fetcher
+Orpi --> Search
+Orpi ..> Listing : creates
+Search ..> Listing : filters
+Store ..> Run
+Store --> Changes : returns
+Changes o-- Listing
+Changes o-- PriceChange
+PriceChange o-- Listing
+digest ..> Changes : reads
+digest --> Mail : renders
+
+note right of digest
+  **_e** is the only door into the HTML:
+  every scraped value is escaped there,
+  so an escape cannot be remembered in
+  one branch and forgotten in another.
+end note
+
+note bottom of Store
+  Three failures the core tells apart:
+  **FetchError** / adapter raising -> anomaly, no removal
+  **None** from fetch (404, robots) -> silent skip
+  **None** from parse -> not a listing any more
+  plus **ConfigError** (exit 2) and **DigestError** (rollback).
+end note
+@enduml
+```
+
 **What counts as a breakage.** A `FetchError` or an adapter raising stops that site's collection
 and is passed to `diff` as an error: principle 6 then reports an anomaly and marks nothing as
 removed, while the listings seen before the failure are still recorded. A page that answers 404,
@@ -144,6 +432,41 @@ listing(id TEXT PRIMARY KEY,   -- the identity above
 price_change(listing_id, seen_at, old_price, new_price)
 
 site_run(site, ran_at, found_count, error)
+```
+
+The `active` column and the `price_change` rows above are what one listing's life looks like
+across runs:
+
+```plantuml
+@startuml
+skinparam shadowing false
+
+[*] --> unknown : absent from the database
+
+state unknown #line.dashed
+state active
+state withdrawn
+
+unknown --> active : parsed, and matches the search\nINSERT, reported as **new**
+active --> active : same price\nUPDATE last_seen
+active --> active : price differs\nprice_change row, **drop** or **rise**
+active --> withdrawn : absent from this run,\nand no anomaly\nactive = 0, reported as **removed**
+withdrawn --> active : seen again\nactive = 1, reported as **new**\n(first_seen and history kept)
+
+note right of active
+  **Principle 6.** An adapter that errored,
+  or found 0 where the last successful run
+  found N > 0, yields an anomaly: this
+  transition is **not taken** and nothing is
+  marked as removed.
+end note
+
+note left of unknown
+  A listing already in the database skips the
+  search filter, so a price rising past
+  price_max is a **rise**, never a removal.
+end note
+@enduml
 ```
 
 `ref` is stored even though the identity already encodes it: a removed listing is read back from
